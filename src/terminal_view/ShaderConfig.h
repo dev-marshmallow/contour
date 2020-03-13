@@ -45,4 +45,6 @@ inline std::string to_string(ShaderClass _shaderClass)
     throw std::invalid_argument(fmt::format("ShaderClass<{}>", static_cast<unsigned>(_shaderClass)));
 }
 
+ShaderConfig defaultShaderConfig(ShaderClass _shaderClass);
+
 } // namespace
