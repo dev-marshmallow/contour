@@ -12,6 +12,7 @@
  * limitations under the License.
  */
 #include <terminal/pty/UnixPty.h>
+#include <terminal/pty/UnixUtils.h>
 
 #include <crispy/deferred.h>
 #include <crispy/escape.h>
@@ -64,60 +65,6 @@ namespace terminal
 
 namespace
 {
-    static termios getTerminalSettings(int fd)
-    {
-        termios tio {};
-        tcgetattr(fd, &tio);
-        return tio;
-    }
-
-    static termios constructTerminalSettings(int fd)
-    {
-        auto tio = getTerminalSettings(fd);
-
-        // input flags
-#if defined(IUTF8)
-        // Input is UTF-8; this allows character-erase to be properly applied in cooked mode.
-        tio.c_iflag |= IUTF8;
-#endif
-
-        // special characters
-        tio.c_cc[VMIN] = 1;  // Report as soon as 1 character is available.
-        tio.c_cc[VTIME] = 0; // Disable timeout (no need).
-        // tio.c_iflag &= ~ISTRIP; // Disable stripping 8th bit off the bytes.
-        // tio.c_iflag &= ~INLCR;  // Disable NL-to-CR mapping
-        // tio.c_iflag &= ~ICRNL;  // Disable CR-to-NL mapping
-        // tio.c_iflag &= ~IXON;   // Disable control flow
-        // tio.c_iflag &= ~BRKINT; // disable signal-break handling
-
-        return tio;
-    }
-
-    bool setFileFlags(int fd, int flags) noexcept
-    {
-        int currentFlags {};
-        if (fcntl(fd, F_GETFL, &currentFlags) < 0)
-            return false;
-        if (fcntl(fd, F_SETFL, currentFlags | flags) < 0)
-            return false;
-        return true;
-    }
-
-    void saveClose(int* fd)
-    {
-        if (fd && *fd != -1)
-        {
-            ::close(*fd);
-            *fd = -1;
-        }
-    }
-
-    void saveDup2(int a, int b)
-    {
-        while (dup2(a, b) == -1 && (errno == EBUSY || errno == EINTR))
-            ;
-    }
-
     UnixPty::PtyHandles createUnixPty(PageSize const& _windowSize, optional<ImageSize> _pixels)
     {
         // See https://code.woboq.org/userspace/glibc/login/forkpty.c.html
@@ -130,7 +77,7 @@ namespace
                            unbox<unsigned short>(_pixels.value_or(ImageSize {}).height) };
 
 #if defined(__APPLE__)
-        winsize* wsa = const_cast<winsize*>(&ws);
+        auto* wsa = const_cast<winsize*>(&ws);
 #else
         winsize const* wsa = &ws;
 #endif
@@ -184,12 +131,12 @@ void UnixPipe::close()
 
 void UnixPipe::closeReader() noexcept
 {
-    saveClose(&pfd[0]);
+    detail::saveClose(&pfd[0]);
 }
 
 void UnixPipe::closeWriter() noexcept
 {
-    saveClose(&pfd[1]);
+    detail::saveClose(&pfd[1]);
 }
 // }}}
 
@@ -206,7 +153,7 @@ PtySlaveHandle UnixPty::Slave::handle() const noexcept
 
 void UnixPty::Slave::close()
 {
-    saveClose(&_slaveFd);
+    detail::saveClose(&_slaveFd);
 }
 
 bool UnixPty::Slave::isClosed() const noexcept
@@ -216,7 +163,7 @@ bool UnixPty::Slave::isClosed() const noexcept
 
 bool UnixPty::Slave::configure() noexcept
 {
-    auto const tio = constructTerminalSettings(_slaveFd);
+    auto const tio = detail::constructTerminalSettings(_slaveFd);
     if (tcsetattr(_slaveFd, TCSANOW, &tio) == 0)
         tcflush(_slaveFd, TCIOFLUSH);
     return true;
@@ -245,11 +192,11 @@ bool UnixPty::Slave::login()
     {
         if (_slaveFd != fd)
             ::close(fd);
-        saveDup2(_slaveFd, fd);
+        detail::saveDup2(_slaveFd, fd);
     }
 
     if (_slaveFd > 2)
-        saveClose(&_slaveFd);
+        detail::saveClose(&_slaveFd);
 
     return true;
 }
@@ -274,14 +221,15 @@ UnixPty::UnixPty(PageSize const& _windowSize, optional<ImageSize> _pixels):
 
 UnixPty::UnixPty(PtyHandles handles, PageSize pageSize):
     _masterFd { unbox<int>(handles.master) },
+    _pipe {},
     _buffer(4 * 1024 * 1024, {}),
     _pageSize { pageSize },
     _slave { handles.slave }
 {
-    if (!setFileFlags(_masterFd, O_CLOEXEC | O_NONBLOCK))
+    if (!detail::setFileFlags(_masterFd, O_CLOEXEC | O_NONBLOCK))
         throw runtime_error { "Failed to configure PTY. "s + strerror(errno) };
 
-    setFileFlags(_stdoutFastPipe.reader(), O_NONBLOCK);
+    detail::setFileFlags(_stdoutFastPipe.reader(), O_NONBLOCK);
     PtyLog()("stdout fastpipe: reader {}, writer {}", _stdoutFastPipe.reader(), _stdoutFastPipe.writer());
 
 #if defined(__linux__)
@@ -291,7 +239,7 @@ UnixPty::UnixPty(PtyHandles handles, PageSize pageSize):
     if (pipe(_pipe.data()) < 0)
         throw runtime_error { "Failed to create PTY pipe. "s + strerror(errno) };
     for (auto const fd: _pipe)
-        if (!setFileFlags(fd, O_CLOEXEC | O_NONBLOCK))
+        if (!detail::setFileFlags(fd, O_CLOEXEC | O_NONBLOCK))
             break;
 #endif
 }
@@ -299,9 +247,9 @@ UnixPty::UnixPty(PtyHandles handles, PageSize pageSize):
 UnixPty::~UnixPty()
 {
     PtyLog()("PTY destroying master (file descriptor {}).", _masterFd);
-    saveClose(&_pipe.at(0));
-    saveClose(&_pipe.at(1));
-    saveClose(&_masterFd);
+    detail::saveClose(&_pipe.at(0));
+    detail::saveClose(&_pipe.at(1));
+    detail::saveClose(&_masterFd);
 }
 
 PtySlave& UnixPty::slave() noexcept
@@ -317,7 +265,7 @@ PtyMasterHandle UnixPty::handle() const noexcept
 void UnixPty::close()
 {
     PtyLog()("PTY closing master (file descriptor {}).", _masterFd);
-    saveClose(&_masterFd);
+    detail::saveClose(&_masterFd);
     wakeupReader();
 }
 
