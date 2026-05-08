@@ -123,6 +123,7 @@
           <li>Fixes VT parser: DCS_Param to DCS_Intermediate transition now correctly collects intermediate bytes</li>
           <li>Removes ScreenBase class — merges into Screen, eliminating unnecessary virtual dispatch</li>
           <li>Fixes loading of optional fields in the config file (#1940)</li>
+          <li>Fix std::simd feature test</li>
         </ul>
       </description>
     </release>
