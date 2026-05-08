@@ -10,7 +10,7 @@
 #include <utility>
 
 // clang-format off
-#if __has_include(<simd>)
+#if (__cpp_lib_simd >= 202411L)
     #include <simd>
     namespace simd = std;
     #define VTBACKEND_SIMD_FOUND 1
