@@ -373,3 +373,38 @@ TEST_CASE("SixelParser.vertical_cursor_advance", "[sixel]")
     REQUIRE(ib.size() == vtbackend::ImageSize { Width(1), Height(24) });
     REQUIRE(ib.sixelCursor() == CellLocation { LineOffset(24), ColumnOffset { 0 } });
 }
+
+TEST_CASE("SixelParser.aspect_ratio_overflow", "[sixel]")
+{
+    // 3x7 pixel buffer, aspect ratio 2.  '~' sets all 6 sixel bits.
+    // The sixth pixel row spans rows 6-7; row 7 is past the end.
+    // bit 0: rows 0,1  ok      bit 3: rows 6,7  row 7 overflows
+    // bit 1: rows 2,3  ok      bit 4: rows 8,9  skipped
+    // bit 2: rows 4,5  ok      bit 5: rows 10,11 skipped
+    auto constexpr DefaultColor = RGBAColor { 0, 0, 0, 0xFF };
+    auto constexpr PinColor = RGBColor { 0x10, 0x20, 0x40 };
+
+    auto ib = SixelImageBuilder(
+        { Width(3), Height(7) }, 2, 1, DefaultColor, std::make_shared<SixelColorPalette>(16, 256));
+    ib.setRaster(2, 1, std::nullopt);
+
+    auto sp = SixelParser { ib };
+
+    ib.setColor(0, PinColor);
+
+    sp.parseFragment("~");
+    sp.done();
+
+    REQUIRE(ib.size().width == Width(1));
+    REQUIRE(ib.size().height == Height(6));
+
+    // bit 0: rows 0,1 ok     bit 3: rows 6,7 row 7 overflows
+    // bit 1: rows 2,3 ok     bit 4: rows 8,9 skipped
+    // bit 2: rows 4,5 ok     bit 5: rows 10,11 skipped
+    for (int y = 0; y < 6; ++y)
+    {
+        auto const pos = CellLocation { .line = LineOffset(y), .column = ColumnOffset(0) };
+        auto const actualColor = ib.at(pos);
+        CHECK(actualColor.rgb() == PinColor);
+    }
+}
