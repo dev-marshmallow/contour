@@ -392,13 +392,15 @@ RGBAColor SixelImageBuilder::at(CellLocation coord) const noexcept
 
 void SixelImageBuilder::write(CellLocation const& coord, RGBColor const& value) noexcept
 {
-    if (unbox(coord.line) >= 0 && unbox(coord.line) < unbox<int>(_maxSize.height) && unbox(coord.column) >= 0
-        && unbox(coord.column) < unbox<int>(_maxSize.width))
+    if (unbox(coord.line) >= 0
+        && unbox(coord.line) + static_cast<int>(_aspectRatio) <= unbox<int>(_maxSize.height)
+        && unbox(coord.column) >= 0 && unbox(coord.column) < unbox<int>(_maxSize.width))
     {
         if (!_explicitSize)
         {
             if (unbox(coord.line) >= unbox<int>(_size.height))
-                _size.height = Height::cast_from(coord.line.as<unsigned int>() + _aspectRatio);
+                _size.height = Height::cast_from(std::min(coord.line.as<unsigned int>() + _aspectRatio,
+                                                          unbox<unsigned int>(_maxSize.height)));
             if (unbox(coord.column) >= unbox<int>(_size.width))
                 _size.width = Width::cast_from(coord.column + 1);
         }
