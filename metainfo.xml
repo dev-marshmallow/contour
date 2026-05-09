@@ -123,6 +123,7 @@
           <li>Fixes VT parser: DCS_Param to DCS_Intermediate transition now correctly collects intermediate bytes</li>
           <li>Removes ScreenBase class — merges into Screen, eliminating unnecessary virtual dispatch</li>
           <li>Fixes loading of optional fields in the config file (#1940)</li>
+          <li>Fixes std::simd feature test for GCC 16 compiler</li>
           <li>Fixes sixel crash in sixel parser caused by aspect ratio miscalculation (#1945)</li>
         </ul>
       </description>
