@@ -3,6 +3,7 @@
 .vscode/**
 _deps
 _deps/**
+
 # The Unicode Character Database libunicode's table generator reads, downloaded into the source
 # tree by the build (LIBUNICODE_UCD_BASE_DIR). Same class of thing as _deps above: a fetched build
 # input, not source. Leaving it untracked also kept it in the spell checker's search, where a few
@@ -42,6 +43,11 @@ CMakeUserPresets.json
 # spell gate walks the working tree honouring .gitignore -- and the UCD is Unicode's data, not
 # our prose ("WOMENS SYMBOL", "Santa Claus", and hex ranges that spell words: 1F9BA reads as BA).
 /_ucd/
+
+# Local environment and secret files. Keep real credentials outside Git; commit only .env.example templates.
+.env
+.env.*
+!.env.example
 
 # This is a workspace-local sandbox directory with test files not to be included in Git.
 sandbox

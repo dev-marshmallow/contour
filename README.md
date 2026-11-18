@@ -90,6 +90,11 @@ it feels native on Windows 11, macOS and Linux.
 
 and much more — see the [full feature list](https://contour-terminal.org/features/).
 
+## Roadmap
+
+Planned work and implementation priorities are listed in [ROADMAP.md](ROADMAP.md) and tracked in
+[GitHub issues](https://github.com/dev-marshmallow/contour/issues).
+
 ## Installation
 
 `contour` is packaged and available for installation on multiple distributions:
